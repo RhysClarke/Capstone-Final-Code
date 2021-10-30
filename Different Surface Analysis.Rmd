@@ -1,0 +1,374 @@
+---
+title: "Different Surface Analysis"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Quick file access 
+
+```{r}
+ATP_Data <- read.csv('Final.csv')
+ATP_Data <- subset(ATP_Data,score != "W/O")
+```
+
+## Establish Players setup.
+ Run this before doing each surface, it resets all the values
+
+```{r}
+Reduced_ATP_Data<- ATP_Data %>% select(tourney_id,tourney_name,winner_name,loser_name,tourney_level)
+players_win <- unique(Reduced_ATP_Data$winner_name)
+players_lose <- unique(Reduced_ATP_Data$loser_name)
+players_total <- c(players_lose,players_win)
+players_total <- unique(players_total)
+players_total<-as_tibble(players_total)
+players_total<-players_total %>% add_column(rep(1500,nrow(players_total))) %>% rename(Names = value, Elo = `rep(1500, nrow(players_total))`)
+
+rm(players_win,players_lose)
+```
+## Grass Elo
+
+```{r}
+k <- 32
+Result_Grass <-
+  as.tibble(data.frame(
+    'year' = c(1992:2021),
+    'Max_Elo' = c(rep(0, 30)),
+    'Name' = c(rep(0, 30))
+  ))
+count <- 1
+#Trackers for the Big 3
+djocker_Grass <- tibble(Name = 'Novak Djokovic', Elo = 1500)
+Djokovic_count <- 1
+federer_Grass <- tibble(Name = 'Roger Federer', Elo = 1500)
+fed_count <- 1
+Nadal_Grass <- tibble(Name = "Rafael Nadal", Elo = 1500)
+Nadal_count <- 1
+top_3_average_grass <- tibble(year = c(1992:2021), ave = rep(0, 30))
+
+Grass_Elo <- ATP_Data %>% subset(surface == 'Grass')
+
+for (j in 1992:2021) {
+  #Running Elo on all the years
+  Year_ATP_Data_Grass <-
+    Grass_Elo %>% subset(substr(tourney_id, start = 1, stop = 4) == j)
+  print(j)
+  
+  l <- nrow(Year_ATP_Data_Grass)
+  for (i in 1:l) {
+    Player_A <-
+      players_total$Elo[match(Year_ATP_Data_Grass$winner_name[i], players_total$Names)]
+    Player_B <-
+      players_total$Elo[match(Year_ATP_Data_Grass$loser_name[i], players_total$Names)]
+    
+    EA <- 1 / (1 + 10 ^ ((Player_B - Player_A) / 400))
+    EB <- 1 / (1 + 10 ^ ((Player_A - Player_B) / 400))
+    
+    players_total$Elo[match(Year_ATP_Data_Grass$winner_name[i], players_total$Names)] <-
+      Player_A + k * (1 - EA)
+    players_total$Elo[match(Year_ATP_Data_Grass$loser_name[i], players_total$Names)] <-
+      Player_B + k * (-EB)
+    if (Year_ATP_Data_Grass$winner_name[i] == 'Roger Federer' |
+        Year_ATP_Data_Grass$loser_name[i] == "Roger Federer") {
+      federer_Grass[fed_count, 2] <-
+        players_total$Elo[match("Roger Federer", players_total$Names)]
+      federer_Grass[fed_count, 1] <-
+        "Roger Federer"
+      fed_count <- fed_count + 1
+    }
+    if (Year_ATP_Data_Grass$winner_name[i] == 'Novak Djokovic' |
+        Year_ATP_Data_Grass$loser_name[i] == 'Novak Djokovic') {
+      djocker_Grass[Djokovic_count, 2] <-
+        players_total$Elo[match("Novak Djokovic", players_total$Names)]
+      djocker_Grass[Djokovic_count, 1] <-
+        "Novak Djokovic"
+      Djokovic_count <- Djokovic_count + 1
+    }
+    
+    if (Year_ATP_Data_Grass$winner_name[i] == 'Rafael Nadal' |
+        Year_ATP_Data_Grass$winner_name[i] == 'Rafael Nadal') {
+      Nadal_Grass[Nadal_count, 2] <-
+        players_total$Elo[match("Rafael Nadal", players_total$Names)]
+      Nadal_Grass[Nadal_count, 1] <-
+        "Rafael Nadal"
+      Nadal_count <- Nadal_count + 1
+    }
+    
+    if (i / 1000 == round(i / 1000)) {
+      print(i)
+      
+    }
+    
+  }
+  #Finding top 3 that aren't the big 3
+  temp <-
+    players_total %>% subset(
+      players_total$Names != "Roger Federer" &
+        players_total$Names != "Novak Djokovic" &
+        players_total$Names != "Rafael Nadal"
+    )
+  temp <- temp %>% arrange(desc(Elo))
+  top_3_average_grass$ave[count] <- mean(temp$Elo[1:3])
+  count <- count + 1
+}
+#plotting
+ggplot() + geom_boxplot(aes(Name, Elo), data = federer_Grass) + geom_boxplot(aes(Name, Elo), data = Nadal_Grass) +
+  geom_boxplot(aes(Name, Elo), data = djocker_Grass) +
+  
+  geom_hline(
+    yintercept = mean(top_3_average_grass$ave),
+    linetype = "dashed",
+    color = "red"
+  ) +
+  theme(axis.title.x =
+          element_blank()) + theme(
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(),
+            axis.line = element_line(colour = "black"),
+            panel.border = element_rect(color = "black", fill = NA, size = 2),
+            axis.text.x = element_text(size = 15),
+            axis.text.y = element_text(size =
+                                         15),
+            axis.title = element_text(size =
+                                        15)
+          )
+
+
+```
+
+
+## clay
+
+```{r}
+k <- 32
+Result_Clay <-
+  as.tibble(data.frame(
+    'year' = c(1992:2021),
+    'Max_Elo' = c(rep(0, 30)),
+    'Name' = c(rep(0, 30))
+  ))
+#Tracking the Big 3
+count <- 1
+djocker_Clay <- tibble(Name = 'Novak Djokovic', Elo = 1500)
+Djokovic_count <- 1
+federer_Clay <- tibble(Name = 'Roger Federer', Elo = 1500)
+fed_count <- 1
+Nadal_Clay <- tibble(Name = "Rafael Nadal", Elo = 1500)
+Nadal_count <- 1
+top_3_average_clay <- tibble(year = c(1992:2021), ave = rep(0, 30))
+
+Clay_Elo <- ATP_Data %>% subset(surface == 'Clay')
+#Caluculating Elo
+for (j in 1992:2021) {
+  Year_ATP_Data_Clay <-
+    Clay_Elo %>% subset(substr(tourney_id, start = 1, stop = 4) == j)
+  print(j)
+  
+  l <- nrow(Year_ATP_Data_Clay)
+  for (i in 1:l) {
+    Player_A <-
+      players_total$Elo[match(Year_ATP_Data_Clay$winner_name[i], players_total$Names)]
+    Player_B <-
+      players_total$Elo[match(Year_ATP_Data_Clay$loser_name[i], players_total$Names)]
+    
+    EA <- 1 / (1 + 10 ^ ((Player_B - Player_A) / 400))
+    EB <- 1 / (1 + 10 ^ ((Player_A - Player_B) / 400))
+    
+    players_total$Elo[match(Year_ATP_Data_Clay$winner_name[i], players_total$Names)] <-
+      Player_A + k * (1 - EA)
+    players_total$Elo[match(Year_ATP_Data_Clay$loser_name[i], players_total$Names)] <-
+      Player_B + k * (-EB)
+    if (Year_ATP_Data_Clay$winner_name[i] == 'Roger Federer' |
+        
+        Year_ATP_Data_Clay$loser_name[i] == "Roger Federer") {
+      federer_Clay[fed_count, 2] <-
+        players_total$Elo[match("Roger Federer", players_total$Names)]
+      federer_Clay[fed_count, 1] <-
+        "Roger Federer"
+      fed_count <- fed_count + 1
+    }
+    if (Year_ATP_Data_Clay$winner_name[i] == 'Novak Djokovic' |
+        Year_ATP_Data_Clay$loser_name[i] == 'Novak Djokovic') {
+      djocker_Clay[Djokovic_count, 2] <-
+        players_total$Elo[match("Novak Djokovic", players_total$Names)]
+      djocker_Clay[Djokovic_count, 1] <-
+        "Novak Djokovic"
+      Djokovic_count <- Djokovic_count + 1
+    }
+    
+    if (Year_ATP_Data_Clay$winner_name[i] == 'Rafael Nadal' |
+        Year_ATP_Data_Clay$winner_name[i] == 'Rafael Nadal') {
+      Nadal_Clay[Nadal_count, 2] <-
+        players_total$Elo[match("Rafael Nadal", players_total$Names)]
+      Nadal_Clay[Nadal_count, 1] <-
+        "Rafael Nadal"
+      Nadal_count <- Nadal_count + 1
+    }
+    
+    if (i / 1000 == round(i / 1000)) {
+      print(i)
+      
+    }
+    
+  }
+  #Pulling out the Big 3 so the top 3 can be calculated
+  temp <-
+    players_total %>% subset(
+      players_total$Names != "Roger Federer" &
+        players_total$Names != "Novak Djokovic" &
+        players_total$Names != "Rafael Nadal"
+    )
+  temp <- temp %>% arrange(desc(Elo))
+  top_3_average_clay$ave[count] <- mean(temp$Elo[1:3])
+  count <- count + 1
+}
+#Plotting
+ggplot() + geom_boxplot(aes(Name, Elo), data = federer_Clay) + geom_boxplot(aes(Name, Elo), data = Nadal_Clay) +
+  geom_boxplot(aes(Name, Elo), data = djocker_Clay) +
+  geom_hline(
+    yintercept = mean(top_3_average_clay$ave),
+    linetype = "dashed",
+    color = "red"
+  ) +
+  theme(axis.title.x =
+          element_blank()) + theme(
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(),
+            axis.line = element_line(colour = "black"),
+            panel.border = element_rect(color = "black", fill = NA, size = 2),
+            axis.text.x = element_text(size = 15),
+            axis.text.y = element_text(size =
+                                         15),
+            axis.title = element_text(size =
+                                        15)
+          )
+
+```
+
+
+
+## Hard Elo 
+
+```{r}
+k <- 32
+Result_Hard <-
+  as.tibble(data.frame(
+    'year' = c(1992:2021),
+    'Max_Elo' = c(rep(0, 30)),
+    'Name' = c(rep(0, 30))
+  ))
+#Tracking the players
+count <- 1
+djocker_Hard <- tibble(Name = 'Novak Djokovic', Elo = 1500)
+Djokovic_count <- 1
+federer_Hard <- tibble(Name = 'Roger Federer', Elo = 1500)
+fed_count <- 1
+Nadal_Hard <- tibble(Name = "Rafael Nadal", Elo = 1500)
+Nadal_count <- 1
+top_3_average_hard <- tibble(year = c(1992:2021), ave = rep(0, 30))
+
+Clay_Elo <- ATP_Data %>% subset(surface == 'Hard')
+
+for (j in 1992:2021) {
+  #Calculating Elo
+  Year_ATP_Data_Hard <-
+    Clay_Elo %>% subset(substr(tourney_id, start = 1, stop = 4) == j)
+  print(j)
+  
+  l <- nrow(Year_ATP_Data_Hard)
+  for (i in 1:l) {
+    Player_A <-
+      players_total$Elo[match(Year_ATP_Data_Hard$winner_name[i], players_total$Names)]
+    Player_B <-
+      players_total$Elo[match(Year_ATP_Data_Hard$loser_name[i], players_total$Names)]
+    
+    EA <- 1 / (1 + 10 ^ ((Player_B - Player_A) / 400))
+    EB <- 1 / (1 + 10 ^ ((Player_A - Player_B) / 400))
+    
+    players_total$Elo[match(Year_ATP_Data_Hard$winner_name[i], players_total$Names)] <-
+      Player_A + k * (1 - EA)
+    players_total$Elo[match(Year_ATP_Data_Hard$loser_name[i], players_total$Names)] <-
+      Player_B + k * (-EB)
+    if (Year_ATP_Data_Hard$winner_name[i] == 'Roger Federer' |
+        
+        Year_ATP_Data_Hard$loser_name[i] == "Roger Federer") {
+      federer_Hard[fed_count, 2] <-
+        players_total$Elo[match("Roger Federer", players_total$Names)]
+      federer_Hard[fed_count, 1] <-
+        "Roger Federer"
+      fed_count <- fed_count + 1
+    }
+    if (Year_ATP_Data_Hard$winner_name[i] == 'Novak Djokovic' |
+        Year_ATP_Data_Hard$loser_name[i] == 'Novak Djokovic') {
+      djocker_Hard[Djokovic_count, 2] <-
+        players_total$Elo[match("Novak Djokovic", players_total$Names)]
+      djocker_Hard[Djokovic_count, 1] <-
+        "Novak Djokovic"
+      Djokovic_count <- Djokovic_count + 1
+    }
+    
+    if (Year_ATP_Data_Hard$winner_name[i] == 'Rafael Nadal' |
+        Year_ATP_Data_Hard$winner_name[i] == 'Rafael Nadal') {
+      Nadal_Hard[Nadal_count, 2] <-
+        players_total$Elo[match("Rafael Nadal", players_total$Names)]
+      Nadal_Hard[Nadal_count, 1] <-
+        "Rafael Nadal"
+      Nadal_count <- Nadal_count + 1
+    }
+    
+    if (i / 1000 == round(i / 1000)) {
+      print(i)
+      
+    }
+    
+  }
+  #Removing the big 3 so the other top 3 can be calculated
+  temp <-
+    players_total %>% subset(
+      players_total$Names != "Roger Federer" &
+        players_total$Names != "Novak Djokovic" &
+        players_total$Names != "Rafael Nadal"
+    )
+  temp <- temp %>% arrange(desc(Elo))
+  top_3_average_hard$ave[count] <- mean(temp$Elo[1:3])
+  count <- count + 1
+}
+players_total <-
+  players_total %>% subset(
+    players_total$Names != "Roger Federer" &
+      players_total$Names != "Novak Djokovic" &
+      players_total$Names != "Rafael Nadal"
+  )
+players_total <- players_total %>% arrange(desc(Elo))
+
+#Plotting
+ggplot() +
+  geom_boxplot(aes(Name, Elo), data = federer_Hard) +
+  geom_boxplot(aes(Name, Elo), data = Nadal_Hard) +
+  geom_boxplot(aes(Name, Elo), data = djocker_Hard) +
+  geom_hline(
+    yintercept = mean(top_3_average_hard$ave),
+    linetype = "dashed",
+    color = "red"
+  ) +
+  theme(axis.title.x =
+          element_blank()) + theme(
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(),
+            axis.line = element_line(colour = "black"),
+            panel.border = element_rect(color = "black", fill = NA, size = 2),
+            axis.text.x = element_text(size = 15),
+            axis.text.y = element_text(size =
+                                         15),
+            axis.title = element_text(size =
+                                        15)
+          )
+
+```

@@ -1,0 +1,54 @@
+---
+title: "Untitled"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse,tidymodels)
+```
+
+```{r}
+## Read in files 
+# Data from https://github.com/JeffSackmann/tennis_atp
+Titles <- list.files("LOCATION OF FILES")
+L = length(Titles)
+CSV = (0)
+CSV_1 <- read_csv(Titles[1])
+CSV_2 <- read_csv(Titles[2])
+Final <- rbind(CSV_1,CSV_2)
+for( i in 3:L){
+ Final <- rbind(Final,read_csv(Titles[i]))
+}
+Final
+write.csv(Final,"Final.csv")
+```
+
+## Quick file access 
+
+```{r}
+ATP_Data <- read.csv('Final.csv')
+```
+
+##Getting unique names 
+
+```{r}
+Winners <- unique(ATP_Data$winner_name)
+Losers <- unique(ATP_Data$loser_name)
+Total_Players <- unique(c(Winners,Losers))
+
+```
+
+## Checking number of winners
+
+```{r}
+#Removed Walkover results
+ATP_Data <- subset(ATP_Data,score != "W/O")
+#Checking different player names 
+Federer_Wins <- subset(ATP_Data,winner_name =="Roger Federer")
+Reduced_ATP_Data<- ATP_Data %>% select(tourney_id,tourney_name,winner_name,loser_name,tourney_level)
+```
+
+Note: Added in the Laver cup results in excel on the final.csv file

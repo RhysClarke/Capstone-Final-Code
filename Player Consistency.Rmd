@@ -1,0 +1,181 @@
+---
+title: "Defeats of the big 3"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse,tidymodels)
+ATP_Data <- read.csv('Final.csv')
+ATP_Data <- subset(ATP_Data,score != "W/O")
+```
+
+## Analysis setup
+
+```{r}
+players_win <- unique(ATP_Data$winner_name)
+players_lose <- unique(ATP_Data$loser_name)
+players_total <- c(players_lose, players_win)
+players_total <- unique(players_total)
+players_total <- as_tibble(players_total)
+
+players_total <-
+  players_total %>% add_column(rep(1500, nrow(players_total))) %>% rename(Names = value, Elo = `rep(1500, nrow(players_total))`)
+
+```
+
+## Player Elo Trackers
+
+```{r}
+Fed_Elo_Track <- tibble(Elo = 0, year = '0')
+Nadal_Elo_Track <- tibble(Elo = 0, year = '0')
+Djokeovic_Elo_Track <- tibble(Elo = 0, year = '0')
+fed_count <- 1
+Nadal_count <- 1
+Djokovic_count <- 1
+
+k <- 32
+l <- nrow(ATP_Data)
+for (i in 1:l) {
+  Player_A <-
+    players_total$Elo[match(ATP_Data$winner_name[i], players_total$Names)]
+  Player_B <-
+    players_total$Elo[match(ATP_Data$loser_name[i], players_total$Names)]
+  
+  EA <- 1 / (1 + 10 ^ ((Player_B - Player_A) / 400))
+  EB <- 1 / (1 + 10 ^ ((Player_A - Player_B) / 400))
+  
+  players_total$Elo[match(ATP_Data$winner_name[i], players_total$Names)] <-
+    Player_A + k * (1 - EA)
+  players_total$Elo[match(ATP_Data$loser_name[i], players_total$Names)] <-
+    Player_B + k * (-EB)
+  ## These make vectors of all the different Elo ratings the players have had
+  if (ATP_Data$winner_name[i] == 'Roger Federer' |
+      ATP_Data$loser_name[i] == "Roger Federer") {
+    Fed_Elo_Track[fed_count, 1] <-
+      players_total$Elo[match("Roger Federer", players_total$Names)]
+    Fed_Elo_Track[fed_count, 2] <-
+      substr(ATP_Data$tourney_id[i], start = 1, stop = 4)
+    fed_count <- fed_count + 1
+  }
+  if (ATP_Data$winner_name[i] == 'Novak Djokovic' |
+      ATP_Data$loser_name[i] == 'Novak Djokovic') {
+    Djokeovic_Elo_Track[Djokovic_count, 1] <-
+      players_total$Elo[match("Novak Djokovic", players_total$Names)]
+    Djokeovic_Elo_Track[Djokovic_count, 2] <-
+      substr(ATP_Data$tourney_id[i], start = 1, stop = 4)
+    Djokovic_count <- Djokovic_count + 1
+  }
+  
+  if (ATP_Data$winner_name[i] == 'Rafael Nadal' |
+      ATP_Data$winner_name[i] == 'Rafael Nadal') {
+    Nadal_Elo_Track[Nadal_count, 1] <-
+      players_total$Elo[match("Rafael Nadal", players_total$Names)]
+    Nadal_Elo_Track[Nadal_count, 2] <-
+      substr(ATP_Data$tourney_id[i], start = 1, stop = 4)
+    Nadal_count <- Nadal_count + 1
+  }
+  
+  if (i / 1000 == round(i / 1000)) {
+    print(i)
+    
+  }
+  
+}
+## Normalising the data
+
+Fed_Elo_Track[, 1] <- Fed_Elo_Track[, 1] / max(Fed_Elo_Track[, 1])
+Djokeovic_Elo_Track[, 1] <-
+  Djokeovic_Elo_Track[, 1] / max(Djokeovic_Elo_Track[, 1])
+Nadal_Elo_Track[, 1] <-
+  Nadal_Elo_Track[, 1] / max(Nadal_Elo_Track[, 1])
+
+##Graphing
+
+#Federer
+ggplot(Fed_Elo_Track) + geom_boxplot(aes(year, Elo)) + geom_hline(
+  yintercept = mean(Fed_Elo_Track$Elo),
+  linetype = "dashed",
+  color = "red"
+) + theme(axis.text.x = element_text(
+  angle = 90,
+  vjust = 0.5,
+  hjust = 1
+)) + theme(panel.background = element_rect(color = 9, # Color of the border
+                                           size = 2)) + xlab("Year") +
+  ylab("Normalised Range") + theme(axis.title.x =
+                                     element_blank()) + theme(
+                                       panel.grid.major = element_blank(),
+                                       panel.grid.minor = element_blank(),
+                                       panel.background = element_blank(),
+                                       axis.line = element_line(colour = "black"),
+                                       panel.border = element_rect(color = "black", fill = NA, size = 2),
+                                       text = element_text(size = 20),
+                                       
+                                     )
+
+#Nadal
+ggplot(Nadal_Elo_Track) + geom_boxplot(aes(year, Elo)) + geom_hline(
+  yintercept = mean(Nadal_Elo_Track$Elo),
+  linetype = "dashed",
+  color = "red"
+) + theme(axis.text.x = element_text(
+  angle = 90,
+  vjust = 0.5,
+  hjust = 1
+)) + theme(panel.background = element_rect(color = 9, # Color of the border
+                                           size = 2)) + xlab("Year") +
+  ylab("Normalised Range") + theme(axis.title.x =
+                                     element_blank()) + theme(
+                                       panel.grid.major = element_blank(),
+                                       panel.grid.minor = element_blank(),
+                                       panel.background = element_blank(),
+                                       axis.line = element_line(colour = "black"),
+                                       panel.border = element_rect(color = "black", fill = NA, size = 2),
+                                       text = element_text(size = 20)
+                                     )
+
+#Novak
+ggplot(Djokeovic_Elo_Track) + geom_boxplot(aes(year, Elo)) + geom_hline(
+  yintercept = mean(Djokeovic_Elo_Track$Elo),
+  linetype = "dashed",
+  color = "red"
+) + theme(axis.text.x = element_text(
+  angle = 90,
+  vjust = 0.5,
+  hjust = 1
+)) + theme(panel.background = element_rect(color = 9, # Color of the border
+                                           size = 2)) + xlab("Year") +
+  ylab("Normalised Range") + theme(axis.title.x =
+                                     element_blank()) + theme(
+                                       panel.grid.major = element_blank(),
+                                       panel.grid.minor = element_blank(),
+                                       panel.background = element_blank(),
+                                       axis.line = element_line(colour = "black"),
+                                       panel.border = element_rect(color = "black", fill = NA, size = 2),
+                                       text = element_text(size = 20)
+                                     )
+
+```
+
+## Side by side career plot of ELO rating
+
+```{r}
+ggplot() + geom_boxplot(aes("Novak Djokovic", Djokeovic_Elo_Track$Elo)) + geom_boxplot(aes("Rafael Nadal", Nadal_Elo_Track$Elo)) +
+  geom_boxplot(aes("Roger Federer", Fed_Elo_Track$Elo)) + theme(axis.text.x = element_text(vjust = 0.5,)) + theme(panel.background = element_rect(color = 9, # Color of the border
+                                                                                                                                                  size = 2))  +
+  theme(axis.title.x =
+          element_blank()) +
+  ylab("Elo") + theme(axis.title.x =
+                        element_blank()) + theme(
+                          panel.grid.major = element_blank(),
+                          panel.grid.minor = element_blank(),
+                          panel.background = element_blank(),
+                          axis.line = element_line(colour = "black"),
+                          panel.border = element_rect(color = "black", fill = NA, size = 2),
+                          text = element_text(size = 20)
+                        )
+
+```

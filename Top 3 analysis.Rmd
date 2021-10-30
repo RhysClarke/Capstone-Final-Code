@@ -1,0 +1,266 @@
+---
+title: "top 3 comparison"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+## This function compares the Big 3 to the top 3 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data 
+
+```{r}
+ATP_Data <- read.csv('Final.csv')
+ATP_Data <- subset(ATP_Data,score != "W/O")
+```
+
+## Setup
+This is player setup
+
+```{r}
+Reduced_ATP_Data<- ATP_Data %>% select(tourney_id,tourney_name,winner_name,loser_name,tourney_level)
+players_win <- unique(Reduced_ATP_Data$winner_name)
+players_lose <- unique(Reduced_ATP_Data$loser_name)
+players_total <- c(players_lose,players_win)
+players_total <- unique(players_total)
+players_total<-as_tibble(players_total)
+
+players_total<-players_total %>% add_column(rep(1500,nrow(players_total))) %>% rename(Names = value, Elo = `rep(1500, nrow(players_total))`)
+rm(players_lose,players_win)
+
+```
+
+```{r}
+k <- 32
+#tracker for big 3 and top 3
+Top_3_Analysis <-
+  as.tibble(data.frame(
+    'year' = c(1992:2021),
+    'Top 3 analysis' = c(rep(0, 30)),
+    'Rest analysis' = c(rep(0, 30)),
+    'everyone' = c(rep(0, 30))
+  ))
+count <- 1
+#To see if the big 3 are the top 3
+Check = c("Novak Djokovic", "Rafael Nadal", "Roger Federer")
+#Tracker for big 3 in top 3
+Big_3_top_3 <-
+  tibble(Year = 1992:2021, 'All Three' = rep(FALSE, 30))
+for (j in 1992:2021) {
+  print(j)
+  Year_Data <-
+    Reduced_ATP_Data %>% subset(substr(tourney_id, start = 1, stop = 4) == j)
+  #Only the people that played in this year
+  Year_Competitors <-
+    unique(c(Year_Data$winner_name, Year_Data$loser_name))
+  
+  Year_Summary <-
+    tibble("Players" = Year_Competitors, Elo = rep(0, length(Year_Competitors)))
+  
+  for (i in 1:nrow(Year_Data)) {
+    Player_A <-
+      players_total$Elo[match(Year_Data$winner_name[i], players_total$Names)]
+    Player_B <-
+      players_total$Elo[match(Year_Data$loser_name[i], players_total$Names)]
+    
+    EA <- 1 / (1 + 10 ^ ((Player_B - Player_A) / 400))
+    EB <- 1 / (1 + 10 ^ ((Player_A - Player_B) / 400))
+    
+    players_total$Elo[match(Year_Data$winner_name[i], players_total$Names)] <-
+      Player_A + k * (1 - EA)
+    players_total$Elo[match(Year_Data$loser_name[i], players_total$Names)] <-
+      Player_B + k * (-EB)
+    
+  }
+  ## end of year
+  for (t in 1:nrow(Year_Summary))
+  {
+    Year_Summary$Elo[t] <-
+      players_total$Elo[match(Year_Summary$Players[t], players_total$Names)]
+    
+    
+  }
+  #Pulling out top 3 players and their Elo
+  Year_Summary <- Year_Summary %>% arrange(desc(Elo))
+  Top_3_Analysis$Top.3.analysis[count] <-
+    mean(Year_Summary$Elo[1:3])
+  Names <- Year_Summary$Players[1:3]
+  print(Names)
+  #See if top 3 are the big 3
+  if (length(unique(Check %in% Names)) == 1 &
+      unique(Check %in% Names) == TRUE)
+  {
+    print(j)
+    Big_3_top_3$`All Three`[count] <- TRUE
+  }
+  Top_3_Analysis$Rest.analysis[count] <-
+    mean(Year_Summary$Elo[6:20])
+  Top_3_Analysis$everyone[count] <- mean(Year_Summary$Elo)
+  count <- count + 1
+}
+```
+
+
+```{r}
+#For when big 3 are top 3, this is for the red dot in the plot
+for(i in 1:nrow(Big_3_top_3)){
+  if(Big_3_top_3$`All Three`[i] ==TRUE){
+    Big_3_top_3$`All Three`[i]<- Top_3_Analysis$Top.3.analysis[i]
+    
+  } else {
+    Big_3_top_3$`All Three`[i]<-NaN
+  }
+}
+```
+
+## PLotting
+
+```{r}
+ggplot() + geom_step(aes(
+  1992:2021,
+  Top_3_Analysis$Rest.analysis,
+  color = str_wrap("Average Elo of players in top 4-20", 20)
+)) + geom_step(aes(
+  1992:2021,
+  Top_3_Analysis$Top.3.analysis,
+  color = str_wrap("Average Elo of players in the top 3", 20)
+)) + theme(axis.title.x =
+             element_blank()) + theme(panel.background = element_rect(color = 9, # Color of the border
+                                                                      size = 2)) +
+  scale_x_continuous(breaks = c(1992:2021)) +
+  theme(axis.text.x = element_text(
+    angle = 90,
+    vjust = 0.5,
+    hjust = 1
+  )) + geom_point(data = Big_3_top_3,
+                  aes(Big_3_top_3$Year, Big_3_top_3$`All Three`, color = "All 3 are present")) +
+  ylab("Average Elo Rating") + geom_step(aes(
+    1992:2021,
+    Top_3_Analysis$everyone,
+    color = str_wrap("Average Elo of players all players for the year", 20)
+  )) + theme(axis.title.x =
+               element_blank()) + theme(
+                 panel.grid.major = element_blank(),
+                 panel.grid.minor = element_blank(),
+                 panel.background = element_blank(),
+                 axis.line = element_line(colour = "black"),
+                 panel.border = element_rect(color = "black", fill = NA, size = 2),
+                 legend.text = element_text(size = 15),
+                 legend.key.height = unit(2, "cm"),
+                 axis.text.x = element_text(size = 15),
+                 axis.text.y = element_text(size =15),
+                 axis.title = element_text(size=15),
+                   legend.title = element_blank()
+                 
+               ) +
+  scale_x_continuous(breaks = c(seq(1992, 2021, 4))) + labs(colour = "color") +
+  guides(color = guide_legend(override.aes = list(linetype = c(0, 1, 1,1) ) ) )
+```
+
+
+## Comparing big with with top 3 
+Run player set up before this function
+
+```{r}
+k <- 32
+Top_3_Big_3 <-
+  as.tibble(data.frame(
+    'year' = c(2007:2021),
+    'Top 3 analysis' = c(rep(0, 15)),
+    'Big 3 analysis' = c(rep(0, 15))
+  ))
+pre_big_3<-
+  as.tibble(data.frame(
+    'year' = c(1992:2007),
+    'Top 3 analysis' = c(rep(0, 16)),
+    'Top 3-6 analysis' = c(rep(0, 16))
+  ))
+ count <- 1
+ count_pre <- 1
+ Check = c("Novak Djokovic","Rafael Nadal","Roger Federer")
+for (j in 1992:2021) {
+  print(j)
+  Year_Data <-
+  Reduced_ATP_Data %>% subset(substr(tourney_id, start = 1, stop = 4) == j)
+  
+  Year_Competitors <-
+  unique(c(Year_Data$winner_name, Year_Data$loser_name))
+  
+Year_Summary <-
+  tibble("Players" = Year_Competitors, Elo = rep(0, length(Year_Competitors)))
+  
+  for (i in 1:nrow(Year_Data)) {
+    Player_A <-
+      players_total$Elo[match(Year_Data$winner_name[i], players_total$Names)]
+    Player_B <-
+      players_total$Elo[match(Year_Data$loser_name[i], players_total$Names)]
+    
+    EA <- 1 / (1 + 10 ^ ((Player_B - Player_A) / 400))
+    EB <- 1 / (1 + 10 ^ ((Player_A - Player_B) / 400))
+    
+    players_total$Elo[match(Year_Data$winner_name[i], players_total$Names)] <-
+      Player_A + k * (1 - EA)
+    players_total$Elo[match(Year_Data$loser_name[i], players_total$Names)] <-
+      Player_B + k * (-EB)
+    
+  }
+## end of year 
+for (t in 1:nrow(Year_Summary))
+{
+  Year_Summary$Elo[t] <-
+    players_total$Elo[match(Year_Summary$Players[t], players_total$Names)]
+  
+  
+}
+if (j>2006){
+  Year_Summary <- Year_Summary %>% arrange(desc(Elo))
+  Year_Summary <- Year_Summary[1:6,]
+#Top_3_Analysis$Top.3.analysis[count] <- mean(Year_Summary$Elo[1:3])
+Names_not_big_3 <- Year_Summary %>% subset(Players != "Roger Federer" & Players != "Rafael Nadal" & Players != "Novak Djokovic")
+Names_big_3 <- Year_Summary %>% subset(Players == "Roger Federer" | Players == "Rafael Nadal" | Players == "Novak Djokovic")
+Top_3_Big_3$Top.3.analysis[count] <- mean(Names_not_big_3$Elo)
+Top_3_Big_3$Big.3.analysis[count] <- mean(Names_big_3$Elo)
+count<- count+1
+}
+if(j<2007){
+  Year_Summary <- Year_Summary %>% arrange(desc(Elo))
+  Year_Summary <- Year_Summary[1:6,]
+  pre_big_3$Top.3.analysis[count_pre] <- mean(Year_Summary$Elo[1:3])
+  pre_big_3$Top.3.6.analysis[count_pre]<- mean(Year_Summary$Elo[4:6])
+  count_pre <- count_pre+1
+  
+}
+
+
+
+}
+Top_3_Big_3$Top.3.analysis
+pre_big_3$Top.3.analysis[nrow(pre_big_3)]<-Top_3_Big_3$Big.3.analysis[1]
+pre_big_3$Top.3.6.analysis[nrow(pre_big_3)]<- Top_3_Big_3$Top.3.analysis[1]
+```
+
+```{r}
+ggplot(Top_3_Big_3) + geom_step(aes(year, Top.3.analysis, color = "Other top 3 players")) +
+  geom_step(aes(year, Big.3.analysis, color = "Big 3")) + geom_step(data = pre_big_3, aes(year, Top.3.analysis, color = "Top 3 prior to Big 3")) +
+  geom_step(data = pre_big_3, aes(year, Top.3.6.analysis, color = "Top 3-6 prior to Big 3")) +
+  theme(axis.title.x =
+          element_blank()) + theme(
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(),
+            axis.line = element_line(colour = "black"),
+            panel.border = element_rect(color = "black", fill = NA, size = 2),
+            legend.text = element_text(size = 12),
+            legend.key.height = unit(2, "cm"),
+                             axis.text.x = element_text(size = 15),
+                 axis.text.y = element_text(size =15),
+                 axis.title = element_text(size=15),
+            legend.title = element_blank()
+            
+          ) + xlab("Year") + ylab("Average Elo Rating") +
+  scale_x_continuous(breaks = c(seq(1992, 2021, 4)))
+
+```
